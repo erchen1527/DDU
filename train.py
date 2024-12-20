@@ -2,11 +2,9 @@
 Script for training a single model for OOD detection.
 """
 
-import json
+import os
 import torch
-import argparse
 from torch import optim
-import torch.backends.cudnn as cudnn
 
 # Import dataloaders
 import data.ood_detection.cifar10 as cifar10
@@ -22,12 +20,7 @@ from net.vgg import vgg16
 
 # Import train and validation utilities
 from utils.args import training_args
-from utils.eval_utils import get_eval_stats
-from utils.train_utils import model_save_name
-from utils.train_utils import train_single_epoch, test_single_epoch
-
-# Tensorboard utilities
-from torch.utils.tensorboard import SummaryWriter
+from utils.train_utils import train_single_epoch
 
 
 dataset_num_classes = {"cifar10": 10, "cifar100": 100, "svhn": 10, "dirty_mnist": 10}
@@ -56,9 +49,8 @@ if __name__ == "__main__":
     print("Seed: ", args.seed)
     torch.manual_seed(args.seed)
 
-    cuda = torch.cuda.is_available() and args.gpu
-    device = torch.device("cuda" if cuda else "cpu")
-    print("CUDA set: " + str(cuda))
+    device = torch.device(args.device)
+    print("Using device:", device)
 
     num_classes = dataset_num_classes[args.dataset]
 
@@ -69,12 +61,7 @@ if __name__ == "__main__":
         coeff=args.coeff,
         num_classes=num_classes,
         mnist="mnist" in args.dataset,
-    )
-
-    if args.gpu:
-        net.cuda()
-        net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
-        cudnn.benchmark = True
+    ).to(device)
 
     opt_params = net.parameters()
     if args.optimiser == "sgd":
@@ -100,33 +87,19 @@ if __name__ == "__main__":
         pin_memory=args.gpu,
     )
 
-    # Creating summary writer in tensorboard
-    writer = SummaryWriter(args.save_loc + "stats_logging/")
-
     training_set_loss = {}
 
-    save_name = model_save_name(args.model, args.sn, args.mod, args.coeff, args.seed)
-    print("Model save name", save_name)
-
     for epoch in range(0, args.epoch):
-        print("Starting epoch", epoch)
-        train_loss = train_single_epoch(
-            epoch, net, train_loader, optimizer, device, loss_function=args.loss_function, loss_mean=args.loss_mean,
-        )
-
-        training_set_loss[epoch] = train_loss
-        writer.add_scalar(save_name + "_train_loss", train_loss, (epoch + 1))
+        train_loss = train_single_epoch(epoch, net, train_loader, optimizer, device, loss_function=args.loss_function)
 
         scheduler.step()
 
-        if (epoch + 1) % args.save_interval == 0:
-            saved_name = args.save_loc + save_name + "_" + str(epoch + 1) + ".model"
+        if not os.path.exists(args.save_loc):
+            os.makedirs(args.save_loc)
+        if (epoch+1) == 300:
+            saved_name = os.path.join(args.save_loc, args.model + "_300.pt")
             torch.save(net.state_dict(), saved_name)
 
-    saved_name = args.save_loc + save_name + "_" + str(epoch + 1) + ".model"
+    saved_name = os.path.join(args.save_loc, args.model + "_" + str(epoch + 1) + ".pt")
     torch.save(net.state_dict(), saved_name)
     print("Model saved to ", saved_name)
-
-    writer.close()
-    with open(saved_name[: saved_name.rfind("_")] + "_train_loss.json", "a") as f:
-        json.dump(training_set_loss, f)

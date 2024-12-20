@@ -50,7 +50,7 @@ def get_train_valid_loader(batch_size, augment, val_seed, val_size=0.1, num_work
         train_transform = transforms.Compose([transforms.ToTensor(), normalize,])
 
     # load the dataset
-    data_dir = "./data"
+    data_dir = "/root/shared-nvme/dataset"
     train_dataset = datasets.CIFAR10(root=data_dir, train=True, download=True, transform=train_transform,)
 
     valid_dataset = datasets.CIFAR10(root=data_dir, train=True, download=False, transform=valid_transform,)

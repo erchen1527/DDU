@@ -8,7 +8,7 @@ import argparse
 def training_args():
 
     default_dataset = "cifar10"
-    dataset_root = "./"
+    dataset_root = "/root/shared-nvme/dataset"
     ood_dataset = "svhn"
     train_batch_size = 128
     test_batch_size = 128
@@ -32,6 +32,7 @@ def training_args():
     parser = argparse.ArgumentParser(
         description="Args for training parameters", formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    parser.add_argument('--device', type=str, default='cuda', help='device to use for training')
     parser.add_argument("--seed", type=int, dest="seed", required=True, help="Seed to use")
     parser.add_argument(
         "--dataset", type=str, default=default_dataset, dest="dataset", help="dataset to train on",
